@@ -1,0 +1,7 @@
+node_modules
+artifacts
+cache
+node_modules\.package-lock.json
+package.json
+.env
+script/address.js
