@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.10;
-interface TransactionDetail{
-
-    enum TransactionType {Deposited, Generated, Withdraw, Repaid, APYWithdraw, FeeCollected}
+import "./TransactionEnums.sol";
+interface TransactionDetail is TransactionEnums{
 
     struct Transactions{
         uint256 createdAt;

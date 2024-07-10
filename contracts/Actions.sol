@@ -4,11 +4,14 @@ pragma solidity ^0.8.7;
 import "./Common/Interface/IETHJoin.sol";
 import "./Common/Interface/IVault.sol";
 import "./Common/Interface/IERUSDJoin.sol";
+import "./Common/Interface/IAPYMapper.sol";
 import "./Common/Interface/IAPY.sol";
 import "./Common/ErrorHandler.sol";
 import "./Common/ERC20/Ownable.sol";
 import "./Common/Interface/IOraclePrice.sol";
+import "contracts/Common/Interface/IAPYFactory.sol";
 import "./Common/ERC20/IERC20.sol";
+import "./console.sol";
 
 contract Actions is Ownable{
 
@@ -29,6 +32,15 @@ contract Actions is Ownable{
 
     // APY contract address
     address public vaultContract;
+
+    // address of APY Factory
+    address public APYFactory;
+
+    // address of APY mapper
+    address public APYMapper;
+
+    // address of APY mapper
+    address public liquidation;
     
     // ethJoin contract address, ERUSD join contract address, oracle contract address, APY contract addres
     constructor(address _ethJoin, address _ERUSDJoin, address _oracleAddress, address _APYContract, address _vaultContract){
@@ -40,10 +52,19 @@ contract Actions is Ownable{
         vaultContract = _vaultContract;
     }
 
+    /// this method is used to set apyMApper, only owner can call this
+    function setAPYMapper(address _apyMapper) external onlyOwner{
+        APYMapper = _apyMapper;
+    }
+
+    /// this method is used to set liquidation, only owner can call this
+    function setLiquidationContract(address _liquidation) external onlyOwner{
+        liquidation = _liquidation;
+    }
+
     /// internal functions to call eth join and send ETH amount to EthJoin for lock
     function ethJoin_join(address _userAddress, uint256 _amount, uint256 _taxAmount) internal  {
         IETHJoin(ethJoin).join(_userAddress, _amount, _taxAmount);
-        payable(ethJoin).transfer(_amount + _taxAmount);
     }
 
     /// internal functions to call ERUSD join and mint ERUSD token amount to ERUSDJoin
@@ -73,12 +94,15 @@ contract Actions is Ownable{
         require(msg.value >= getETHCalculatedAmount(_tokenAmount, _collateralRatio) + _taxAmount, ErrorHandler.LESS_ETH_AMOUNT);
         
         // call internal function
-        ethJoin_join(msg.sender, msg.value - _taxAmount, _taxAmount);
+        ethJoin_join(msg.sender, getETHCalculatedAmount(_tokenAmount, _collateralRatio), _taxAmount);
+        payable(ethJoin).transfer(msg.value);
         
         // call join contract
         ERUSDJoin_join(msg.sender, _tokenAmount);
     }
 
+    /// this method will return total amount of ETC with current price.
+    /// we are saving user USDT amount at the time when user deposited, and now we can get user's ETC amount.
     function getTotalETC(address _userAddress) public view returns(uint256 _amount){
         _amount = IVault(vaultContract).userUSDTAmount(_userAddress) * 10 **18;
         _amount = _amount/IOraclePrice(oracleAddress).getAmount(1 ether);
@@ -86,31 +110,89 @@ contract Actions is Ownable{
 
     /// withdraw collateral with specific amount
     function withdrawCollateral() external {
+        uint256 _totalAPYAmount;
         IERUSDJoin(ERUSDJoin).exit(msg.sender, IVault(vaultContract).ERUSD(msg.sender));
 
-        uint256 _ethAmount = getTotalETC(msg.sender);
+        //uint256 _ethAmount = getTotalETC(msg.sender);
+        uint256 _ethAmount = IVault(vaultContract).eth(msg.sender);
 
-        require(_ethAmount > 0, "No Collateral");
+        require(_ethAmount > 0, ErrorHandler.NO_COLLATERAL);
 
-        (uint256 _APYAmount,) = IAPY(APYContract).calculate(msg.sender);
+        address[] memory _APYs = IAPYMapper(APYMapper).getAPYContracts();
+
+        // this loop will get collected APY reward from all APY contracts
+        for(uint256 x=0; x<_APYs.length; x++){
+            (uint256 _APYAmount,) = IAPY(_APYs[x]).calculate(msg.sender);    
+            _totalAPYAmount += _APYAmount;
+            IAPY(_APYs[x]).resetAPYReward(msg.sender, IVault(vaultContract).eth(msg.sender));
+        }
+
+        // check if contract have this amount of balance
+        require( ethJoin.balance >= _totalAPYAmount + _ethAmount, ErrorHandler.INSUFFICIENT_FUND);
         
         // update the ETC and transfer it to user
-        IETHJoin(ethJoin).exit(msg.sender, _ethAmount, _APYAmount);
-        
-        IAPY(APYContract).resetAPYReward(msg.sender, IVault(vaultContract).eth(msg.sender));
+        IETHJoin(ethJoin).exit(msg.sender, _ethAmount, _totalAPYAmount);
 
+        // make the user USDT amount to zero
         IVault(vaultContract).setUserInitialUSDTAmount(msg.sender, 0);
     }
 
+    function getUserTotalAPY(address _userAddress) external view returns(uint256 _amount){
+        if(IVault(vaultContract).eth(_userAddress) > 0){
+        address[] memory _APYs = IAPYMapper(APYMapper).getAPYContracts();
+        for(uint256 x=0; x<_APYs.length; x++){
+                (uint256 _APYAmount,) = IAPY(_APYs[x]).calculate(_userAddress);
+                _amount += _APYAmount;
+            }
+        }
+    }
+
+    /// If user wants to withdraw seperate APY, user can call this method.
     function withdrawAPYAmount() external {
+        address[] memory _APYs = IAPYMapper(APYMapper).getAPYContracts();
+        uint8 _times;
+        uint256 _totalAPYAmount;
         if(IVault(vaultContract).eth(msg.sender) > 0){
-            (uint256 _APYAmount,) = IAPY(APYContract).calculate(msg.sender);
-            //IAPY(APYContract).setUserAPYWithdraw(msg.sender, _APYAmount);
-            IAPY(APYContract).resetAPYReward(msg.sender, IVault(vaultContract).eth(msg.sender));
-            IETHJoin(ethJoin).withdrawAPYAmount(msg.sender, _APYAmount);
+            for(uint256 x=0; x<_APYs.length; x++){
+
+                (uint256 _APYAmount,) = IAPY(_APYs[x]).calculate(msg.sender);
+                if(_APYAmount == 0)
+                _times++;
+                _totalAPYAmount += _APYAmount;
+                IAPY(_APYs[x]).resetAPYReward(msg.sender, IVault(vaultContract).eth(msg.sender));
+            }
+            require(_times != _APYs.length, ErrorHandler.INVALID_APY_AMOUNT);
+            IETHJoin(ethJoin).withdrawAPYAmount(msg.sender, _totalAPYAmount);
+            IVault(vaultContract).setTotalAPYSent(_totalAPYAmount);
         }
         else 
         revert(ErrorHandler.NOT_ENOUGH_COLLATERAL);
+    }
+
+    function withdrawSingleAPYAmount(address _apyContract) external {
+        if(IVault(vaultContract).eth(msg.sender) > 0){
+            (uint256 _APYAmount,) = IAPY(_apyContract).calculate(msg.sender);
+            IAPY(_apyContract).resetAPYReward(msg.sender, IVault(vaultContract).eth(msg.sender));    
+            IETHJoin(ethJoin).withdrawAPYAmount(msg.sender, _APYAmount);
+            IVault(_apyContract).setTotalAPYSent(_APYAmount);
+        }
+        else 
+        revert(ErrorHandler.NOT_ENOUGH_COLLATERAL);
+    }
+    
+    /// This method is used to set APY factory, only owner can call this method.
+    function setAPYFactory(address _APYFactory) external onlyOwner{
+        APYFactory = _APYFactory;
+    }
+
+    /// This method is used to update APY, only owner can call this method. It will create a seperete APY contract with new APY Percentage.
+    function updateAPY(uint256 _apyPercentage, uint256 _daySeconds) external onlyOwner {
+        address newAPYContract = IAPYFactory(APYFactory).createAPY(_apyPercentage, _daySeconds, msg.sender, address(this), vaultContract);        
+        //vaultContract = newAPYContract;
+        IVault(vaultContract).setAuthenticUser(newAPYContract);
+        IVault(vaultContract).setAPYContract(newAPYContract);
+        IAPY(newAPYContract).setAuthenticUser(vaultContract);
+        IAPY(newAPYContract).setAuthenticUser(liquidation);
     }
 
     /// this method will return ETHC amount that a user will get when he put his tokenAmount ERUSD
@@ -136,14 +218,15 @@ contract Actions is Ownable{
         oracleAddress = _oracleAddress;
     }
 
+    /// to get minimum collateral ratio
     function minCollateralRatio() public view returns(uint256){
         return IVault(vaultContract).minCollateralRatio();
     }
 
     /// this function is used to withdraw collected fee, only owner can call this method.
-    // function withdrawCollectedFee(address _masterWallet, uint256 _amount) external onlyOwner{
-    //     IETHJoin(ethJoin).withdrawFee(_masterWallet, _amount);
-    // }
+    function withdrawCollectedFee(address _masterWallet, uint256 _amount) external onlyOwner{
+        IETHJoin(ethJoin).withdrawFee(_masterWallet, _amount);
+    }
     
     receive() external payable { }
     fallback() external payable { }

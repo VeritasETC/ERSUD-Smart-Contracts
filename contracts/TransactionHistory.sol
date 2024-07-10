@@ -9,6 +9,7 @@ import "./STRUCTS/Transactions.sol";
 
 contract TransactionHistory is Ownable, TransactionDetail{
     
+    /// save authentic callers
     mapping(address => bool) public authenticUsers;
 
     modifier auth {
@@ -81,8 +82,5 @@ contract TransactionHistory is Ownable, TransactionDetail{
     function getUserTransactionLength(address _userAddress) external view returns (uint256){
         return userTransactions[_userAddress].length;
     }
-
-    receive() external payable { }
-    fallback() external payable { }
 
 }

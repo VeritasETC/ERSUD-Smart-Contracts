@@ -37,6 +37,7 @@ contract ERUSD is ERC20, Ownable, ERC20Burnable, ERC20Permit("ERUSD") {
         _mint(userAddress, amount);
     }
 
+    /// used to burn the tokens, only authentic caller can call it.
     function burn(address userAddress, uint256 amount) public override auth{
         _burn(userAddress, amount);
     }

@@ -55,6 +55,31 @@ library ErrorHandler {
    string constant ALREADY_REMOVED = "Oracle/1035";
 
    string constant Vault_OVER_FLOW = "VAULT/1036";
-   string constant Vault_UNDER_FLOW = "TRANSHISTORY/1037";
    
+   string constant Vault_UNDER_FLOW = "TRANSHISTORY/1037";
+
+   string constant INSUFFICIENT_FUND = "ACTION/1038";  
+
+   string constant INVALID_APY_AMOUNT = "ACTION/1039";  
+
+   string constant NO_COLLATERAL = "ACTION/1040";
+
+   string constant SET_SWAP_CONTRACT = "LIQUIDATION/1041";  
+
+   string constant NOT_AUTHORIZED_8 = "LIQUIDATION/1042";  
+
+   string constant CANNOT_LIQUIDATE = "LIQUIDATION/1043";  
+
+   string constant EMPTY_MASTER_WALLLET = "LIQUIDATION/1044";
+
+   string constant INVALID_PENALTY_AMOUNT = "LIQUIDATION/1045";  
+
+   string constant ERUSD_MUST_BURN = "VAULT/1046";  
+
+   string constant INVALID_FEE_AMOUNT = "VAULT/1047";  
+
+   string constant NOT_AUTHORIZED_9 = "LIQUIDATION/1048";  
+   string constant NOT_AUTHORIZED_10 = "APY_MAPPER/1049";  
+   string constant NOT_AUTHORIZED_11 = "APY_FACTORY/1050";  
+   string constant NOT_LIVE_6 = "APY/1051";
 }

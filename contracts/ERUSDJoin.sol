@@ -6,8 +6,9 @@ import "./Common/Interface/IVault.sol";
 import "./Common/ErrorHandler.sol";
 import "./Common/Interface/IERC20MintBurn.sol";
 import "./Common/ERC20/IERC20.sol";
+import "./STRUCTS/TransactionEnums.sol";
 
-contract ERUSDJoin is Ownable{
+contract ERUSDJoin is Ownable, TransactionEnums{
     
     /// mapping of authentic callers
     mapping(address => bool) public authenticUsers;
@@ -38,6 +39,10 @@ contract ERUSDJoin is Ownable{
         ERUSDAddress = _ERUSDAddress;
     }
 
+    function setERUSDAddress(address _ERUSDAddress) external onlyOwner{
+        ERUSDAddress = _ERUSDAddress;
+    }
+
     /// To make someone authentic user
     function setAuthenticUser(address userAddress) external onlyOwner {
         require(live, ErrorHandler.NOT_LIVE_1);
@@ -57,6 +62,11 @@ contract ERUSDJoin is Ownable{
         emit Cage();
     }
 
+    /// to make the contract alive
+    function wakeup() external auth {
+        live = true;
+    }
+
     /// this method will save the record of user into vault and mint given amount of token to this address.
     function join(address userAddress, uint256 amount) external auth {
         require(live, ErrorHandler.NOT_LIVE_1); 
@@ -72,7 +82,7 @@ contract ERUSDJoin is Ownable{
         require(amount > 0, ErrorHandler.OVERFLOW_AMOUNT_1);
         
         // it will update user ERUSD record
-        IVault(vaultContract).suck(userAddress, amount);
+        IVault(vaultContract).suck(userAddress, amount, uint8(TransactionType.Repaid));
         // it will burn user tokens
         IERC20MintBurn(ERUSDAddress).burn(userAddress, amount);
         emit Exit(userAddress, amount);
@@ -83,6 +93,4 @@ contract ERUSDJoin is Ownable{
         vaultContract = _vaultContract;
     }
 
-    receive() external payable { }
-    fallback() external payable { }
 }
