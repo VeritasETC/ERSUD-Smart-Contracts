@@ -33,6 +33,8 @@ contract ERUSDJoin is Ownable, TransactionEnums{
     event Cage();
 
     constructor(address _vaultContract, address _ERUSDAddress) {
+        require(_vaultContract != address(0),ErrorHandler.ZERO_ADDRESS);
+        require(_ERUSDAddress != address(0),ErrorHandler.ZERO_ADDRESS);
         authenticUsers[msg.sender] = true;
         live = true;
         vaultContract = _vaultContract;

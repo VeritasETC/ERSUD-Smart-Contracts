@@ -36,6 +36,8 @@ contract Swap is Ownable, ZumiSwapAmountParams{
     
     /// initialize with swap contract and fee is set to 2000 = 0.2%
     constructor(address _iZumiSwapContract){
+        require(_iZumiSwapContract != address(0),ErrorHandler.ZERO_ADDRESS);
+
         authenticUsers[msg.sender] = true;
         iZumiSwapContract = _iZumiSwapContract; // 0x4bD007912911f3Ee4b4555352b556B08601cE7Ce
         WETH9 = IZumiSwap(iZumiSwapContract).WETH9();

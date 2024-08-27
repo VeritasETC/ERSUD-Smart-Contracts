@@ -9,7 +9,7 @@ import "./Common/Interface/IAPY.sol";
 import "./Common/ErrorHandler.sol";
 import "./Common/ERC20/Ownable.sol";
 import "./Common/Interface/IOraclePrice.sol";
-import "contracts/Common/Interface/IAPYFactory.sol";
+import "./Common/Interface/IAPYFactory.sol";
 import "./Common/ERC20/IERC20.sol";
 import "./console.sol";
 
@@ -44,6 +44,12 @@ contract Actions is Ownable{
     
     // ethJoin contract address, ERUSD join contract address, oracle contract address, APY contract addres
     constructor(address _ethJoin, address _ERUSDJoin, address _oracleAddress, address _APYContract, address _vaultContract){
+        require(_ethJoin != address(0),ErrorHandler.ZERO_ADDRESS);
+        require(_ERUSDJoin != address(0),ErrorHandler.ZERO_ADDRESS);
+        require(_oracleAddress != address(0),ErrorHandler.ZERO_ADDRESS);
+        require(_APYContract != address(0),ErrorHandler.ZERO_ADDRESS);
+        require(_vaultContract != address(0),ErrorHandler.ZERO_ADDRESS);
+        
         ethJoin = _ethJoin;
         ERUSDJoin = _ERUSDJoin;
         stabilityFee = 4; // it is 4%, amount should be in integers
@@ -78,27 +84,38 @@ contract Actions is Ownable{
         // collateralRatio should not be less than minimum collateral ratio
         require(_collateralRatio >= minCollateralRatio(), ErrorHandler.INVALID_RATIO);
 
+        // calculate ETH amount
+        uint256 calculatedAmount = getETHCalculatedAmount(_tokenAmount, _collateralRatio);
+     
         // get ETC amount in USDT at current rate + previous rate
-        uint256 _USDTAmount = IOraclePrice(oracleAddress).getAmount(getETHCalculatedAmount(_tokenAmount, _collateralRatio));
+        uint256 _USDTAmount = IOraclePrice(oracleAddress).getAmount(calculatedAmount);
         _USDTAmount = _USDTAmount + IVault(vaultContract).userUSDTAmount(msg.sender);
 
         // set user initial usdt amount
         IVault(vaultContract).setUserInitialUSDTAmount(msg.sender, _USDTAmount);
 
         // deduct 4% stability fee
-        uint256 _taxAmount = (getETHCalculatedAmount(_tokenAmount, _collateralRatio) * stabilityFee) / 100;
+        uint256 _taxAmount = (calculatedAmount * stabilityFee) / 100;
 
         require(msg.value > _taxAmount, ErrorHandler.INVALID_TAX_AMOUNT);
         
         // remaing amount of ETH should be >= required amount of ETH to buy Tokens
-        require(msg.value >= getETHCalculatedAmount(_tokenAmount, _collateralRatio) + _taxAmount, ErrorHandler.LESS_ETH_AMOUNT);
+        uint256 requiredAmount = calculatedAmount + _taxAmount;
+        require(msg.value >= requiredAmount, ErrorHandler.LESS_ETH_AMOUNT);
         
         // call internal function
-        ethJoin_join(msg.sender, getETHCalculatedAmount(_tokenAmount, _collateralRatio), _taxAmount);
-        payable(ethJoin).transfer(msg.value);
+        ethJoin_join(msg.sender, calculatedAmount, _taxAmount);
+        payable(ethJoin).transfer(requiredAmount);
+
+        // remaining ETH is transferred back
+        if (msg.value > requiredAmount) {
+            uint256 refundAmount = msg.value - requiredAmount;
+            payable(msg.sender).transfer(refundAmount);
+        }
         
         // call join contract
-        ERUSDJoin_join(msg.sender, _tokenAmount);
+        ERUSDJoin_join(msg.sender, _tokenAmount); 
+       
     }
 
     /// this method will return total amount of ETC with current price.
@@ -113,8 +130,7 @@ contract Actions is Ownable{
         uint256 _totalAPYAmount;
         IERUSDJoin(ERUSDJoin).exit(msg.sender, IVault(vaultContract).ERUSD(msg.sender));
 
-        //uint256 _ethAmount = getTotalETC(msg.sender);
-        uint256 _ethAmount = IVault(vaultContract).eth(msg.sender);
+        uint256 _ethAmount = getTotalETC(msg.sender);
 
         require(_ethAmount > 0, ErrorHandler.NO_COLLATERAL);
 
@@ -201,12 +217,16 @@ contract Actions is Ownable{
         return _USDTRate * _ETHCAmount / 10**18;
     }
 
-    /// to get ETH amount against token to buy with collateral ratio
-    function getETHCalculatedAmount(uint256 _tokenAmount, uint256 _collateralRatio) public view returns(uint256){
-        uint256 _oracleUSDAmount = IOraclePrice(oracleAddress).getAmount(1*10**18);
+    // to get ETH amount against token to buy with collateral ratio
+    function getETHCalculatedAmount(uint256 _tokenAmount, uint256 _collateralRatio) public view returns(uint256) {
+        uint256 _oracleUSDAmount = IOraclePrice(oracleAddress).getAmount(1 ether);
         uint256 requireUSDAmount = (_collateralRatio * _tokenAmount) / 100;
-        return  (1 ether * requireUSDAmount) / (_oracleUSDAmount);
-    }
+        
+        uint256 scaledAmount = (1 ether * requireUSDAmount * 1e18) / _oracleUSDAmount;
+        
+        return scaledAmount / 1e18;
+}
+
 
     /// set stability fee, only owner can call this method.
     function setStabilityFee(uint256 _amount) external onlyOwner {

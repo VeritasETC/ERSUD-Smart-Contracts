@@ -8,16 +8,15 @@ import "./Common/ERC20/Ownable.sol";
 import "./Common/ErrorHandler.sol";
 
 contract ERUSD is ERC20, Ownable, ERC20Burnable, ERC20Permit("ERUSD") {
-    
     /// mapping of authentic persons or contracts
     mapping(address => bool) public authentedPersons;
-    
-    modifier auth(){
+
+    modifier auth() {
         require(authentedPersons[msg.sender], ErrorHandler.NOT_AUTHORIZED_1);
         _;
     }
 
-    constructor() ERC20("ERUSD test2", "TestERUSD2") {
+    constructor() ERC20("tERUSD", "tERUSD") {
         authentedPersons[msg.sender] = true;
     }
 
@@ -33,17 +32,19 @@ contract ERUSD is ERC20, Ownable, ERC20Burnable, ERC20Permit("ERUSD") {
     }
 
     /// mint tokens, only authentic caller can call this method.
-    function mint(address userAddress, uint256 amount) public auth{
+    function mint(address userAddress, uint256 amount) public auth {
         _mint(userAddress, amount);
     }
 
     /// used to burn the tokens, only authentic caller can call it.
-    function burn(address userAddress, uint256 amount) public override auth{
+    function burn(address userAddress, uint256 amount) public override auth {
         _burn(userAddress, amount);
     }
 
-    function burnFrom(address userAddress, uint256 amount) public override auth{
+    function burnFrom(
+        address userAddress,
+        uint256 amount
+    ) public override auth {
         _burn(userAddress, amount);
     }
-
 }

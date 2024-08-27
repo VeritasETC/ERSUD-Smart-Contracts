@@ -42,19 +42,23 @@ contract Liquidation is Ownable, TransactionEnums{
 
     /// APY MApper contract
     address public APYMapper;
-
-    /// Liquidity Operator
-    address public liqOperator;
+    
     
     /// initialize it with vault contract, oracle contract, masterWallet, ERUSD contract, ETHJoin contract and APY contract
-    constructor(address _vaultContract, address _oracleAddress, address _masterWallet, address _erusdContract, address _ethJoinContract, address _APYMapper, address _liqOperator){
+    constructor(address _vaultContract, address _oracleAddress, address _masterWallet, address _erusdContract, address _ethJoinContract, address _APYMapper){
+        require(_vaultContract != address(0),ErrorHandler.ZERO_ADDRESS);
+        require(_oracleAddress != address(0),ErrorHandler.ZERO_ADDRESS);
+        require(_masterWallet != address(0),ErrorHandler.ZERO_ADDRESS);
+        require(_erusdContract != address(0),ErrorHandler.ZERO_ADDRESS);
+        require(_ethJoinContract != address(0),ErrorHandler.ZERO_ADDRESS);
+        require(_APYMapper != address(0),ErrorHandler.ZERO_ADDRESS);
+
         vaultContract = _vaultContract;
         oracleAddress = _oracleAddress;
         masterWallet = _masterWallet;
         erusdContract = _erusdContract;
         ethJoinContract = _ethJoinContract;
         APYMapper = _APYMapper;
-        liqOperator = _liqOperator;
         
         // 13% penalty is set by default
         liquidationPenalty = 13;
@@ -63,12 +67,7 @@ contract Liquidation is Ownable, TransactionEnums{
         incentiveFee = 4;
     }
 
-    /// this method is used to set liquidity operator wallet, only owner can call this method.
-    function setLiquidityOperator(address _wallet) external onlyOwner{
-        require(_wallet != address(0), "EMPTY_Operator_WALLLET");
-        liqOperator = _wallet;
-    }
-
+    
     /// this method is used to set mastet wallet, only owner can call this method.
     function setMasterWallet(address _masterWallet) external onlyOwner{
         require(_masterWallet != address(0), ErrorHandler.EMPTY_MASTER_WALLLET);
@@ -120,7 +119,7 @@ contract Liquidation is Ownable, TransactionEnums{
 
         require(swapContract != address(0), ErrorHandler.SET_SWAP_CONTRACT);
 
-        require(liqOperator == msg.sender || owner() == msg.sender, ErrorHandler.NOT_AUTHORIZED_8);
+        require(masterWallet == msg.sender || owner() == msg.sender, ErrorHandler.NOT_AUTHORIZED_8);
         
         require(getLiquidationPercentage(_userAddress) <= (IVault(vaultContract).minCollateralRatio() - liquidationPenalty)*10**18, ErrorHandler.CANNOT_LIQUIDATE);
 

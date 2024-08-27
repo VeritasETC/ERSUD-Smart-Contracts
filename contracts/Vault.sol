@@ -29,9 +29,6 @@ contract Vault is Ownable, TransactionDetail{
     /// mapping to save the record of user ERUSD debted
     mapping (address => uint256) public userUSDTAmount;
 
-    /// mapping of which address can call which address
-    mapping(address => mapping (address => bool)) public can;
-
     /// total ERUSD debted
     uint256 public debt;
 
@@ -81,6 +78,9 @@ contract Vault is Ownable, TransactionDetail{
     mapping (address => bool) public isLoaner;
 
     constructor(address _APYContract, address _transacionHistory) {
+        require(_APYContract != address(0),ErrorHandler.ZERO_ADDRESS);
+        require(_transacionHistory != address(0),ErrorHandler.ZERO_ADDRESS);
+
         authenticUsers[msg.sender] = true;
         live = true;
         APYContract = _APYContract;
@@ -169,7 +169,7 @@ contract Vault is Ownable, TransactionDetail{
     
     // private method used to remove user from its array
     function removeUser(address _usr) private {
-        for(uint256 i=0; i<= loanUsers.length; i++){
+        for(uint256 i=0; i< loanUsers.length; i++){
             if(loanUsers[i] == _usr){
                 removeFromArray(i);
                 break;

@@ -82,4 +82,9 @@ library ErrorHandler {
    string constant NOT_AUTHORIZED_10 = "APY_MAPPER/1049";  
    string constant NOT_AUTHORIZED_11 = "APY_FACTORY/1050";  
    string constant NOT_LIVE_6 = "APY/1051";
+
+   string constant INSUFFICIENT_VALUE = "ACTION/1052";
+   string constant NOT_FACTORY_CONTRACT = "APY/1053";
+   string constant LESS_REQUIRE_USDT_AMOUNT = "ACTION/1054";
+
 }

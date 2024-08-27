@@ -6,7 +6,7 @@ import "./Common/ERC20/IERC20.sol";
 import "./Common/ErrorHandler.sol";
 import "./console.sol";
 import "./STRUCTS/Transactions.sol";
-import "contracts/Common/Interface/IAPY.sol";
+import "./Common/Interface/IAPY.sol";
 
 contract APYMapper is Ownable{
 
@@ -35,6 +35,7 @@ contract APYMapper is Ownable{
 
     /// initialize it with APY factory
     constructor(address _apyFactory){
+        require(_apyFactory != address(0),ErrorHandler.ZERO_ADDRESS);
         APYFactory = _apyFactory;
         authenticUsers[msg.sender] = true;
     }

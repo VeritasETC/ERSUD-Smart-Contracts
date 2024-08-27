@@ -31,6 +31,7 @@ contract ETCJoin is Ownable, TransactionEnums{
 
     /// initialize vault contract
     constructor(address _vaultContract) {
+        require(_vaultContract != address(0),ErrorHandler.ZERO_ADDRESS);
         authenticUsers[msg.sender] = true;
         live = true;
         vaultContract = _vaultContract;

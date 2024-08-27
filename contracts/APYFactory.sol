@@ -3,9 +3,9 @@ pragma solidity ^0.8.20;
 
 import "./Common/ERC20/Ownable.sol";
 import "./Common/ErrorHandler.sol";
-import "contracts/Common/Interface/IAPY.sol";
+import "./Common/Interface/IAPY.sol";
 import "@openzeppelin/contracts/proxy/Clones.sol";
-import "contracts/Common/Interface/IAPYMapper.sol";
+import "./Common/Interface/IAPYMapper.sol";
 
 contract APYFactory is Ownable{
 
@@ -29,8 +29,9 @@ contract APYFactory is Ownable{
         _;
     }
     
-    /// initialize APY contract
+    /// initialize APY contract 
     constructor(address _APYContract) {
+        require(_APYContract != address(0),ErrorHandler.ZERO_ADDRESS);
         APYContract = _APYContract;
         authenticUsers[msg.sender] = true;
     }
@@ -48,9 +49,10 @@ contract APYFactory is Ownable{
         address _preAPYContract = IAPYMapper(APYMapper).getLatestAPYContract();
         bytes32 salt = keccak256(abi.encodePacked(msg.sender, count, block.timestamp));
         newAPYContract = APYContractClone = Clones.cloneDeterministic(APYContract, salt);
-        IAPY(APYContractClone).initialization(_apyPercentage, _daySeconds, _actionsContract, address(this), _vaultContract, _currentOwner, block.timestamp);
-        /// add address in mapper                                                        
+        /// add address in mapper
         IAPYMapper(APYMapper).addAPYDetails(address(APYContractClone), _apyPercentage);
+
+        IAPY(APYContractClone).initialization(_apyPercentage, _daySeconds, _actionsContract, address(this), _vaultContract, _currentOwner, block.timestamp);
         IAPY(_preAPYContract).cage();
         count++;
     }
