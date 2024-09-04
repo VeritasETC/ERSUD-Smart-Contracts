@@ -13,8 +13,11 @@ import "./Common/Interface/IERC20MintBurn.sol";
 import "./console.sol";
 import "./STRUCTS/TransactionEnums.sol";
 import "./Common/Interface/IAPY.sol";
+import "@openzeppelin/contracts/utils/math/SafeMath.sol"; 
 
 contract Liquidation is Ownable, TransactionEnums{
+
+    using SafeMath for uint256;
 
     /// Vault contract
     address public vaultContract;
@@ -89,7 +92,7 @@ contract Liquidation is Ownable, TransactionEnums{
     function getLiquidationPercentage(address _userAddress) public view returns(uint256 _currentPercentage) {
         if(IVault(vaultContract).eth(_userAddress) > 0){
             uint256 _usdtAmount = IOraclePrice(oracleAddress).getAmount(IVault(vaultContract).eth(_userAddress));
-            _currentPercentage = (_usdtAmount * 10 **20) / IVault(vaultContract).ERUSD(_userAddress);
+            _currentPercentage = (_usdtAmount.mul(10**20)).div(IVault(vaultContract).ERUSD(_userAddress));
         }
         else {
             _currentPercentage = 0;
@@ -101,7 +104,7 @@ contract Liquidation is Ownable, TransactionEnums{
         if(IVault(vaultContract).totalCollatral() > 0){
             uint256 _usdtAmount = IOraclePrice(oracleAddress).getAmount(IVault(vaultContract).totalCollatral());
             //_health = (_usdtAmount * 10 **20) / IERC20MintBurn(erusdContract).totalSupply();
-            _health = (_usdtAmount * 10 **20) / IVault(vaultContract).debt();
+            _health = (_usdtAmount.mul(10**20)).div(IVault(vaultContract).debt());
         }
         else 
         _health = 0;
@@ -121,7 +124,7 @@ contract Liquidation is Ownable, TransactionEnums{
 
         require(masterWallet == msg.sender || owner() == msg.sender, ErrorHandler.NOT_AUTHORIZED_8);
         
-        require(getLiquidationPercentage(_userAddress) <= (IVault(vaultContract).minCollateralRatio() - liquidationPenalty)*10**18, ErrorHandler.CANNOT_LIQUIDATE);
+        require(getLiquidationPercentage(_userAddress) <= (IVault(vaultContract).minCollateralRatio().sub(liquidationPenalty)).mul(10**18), ErrorHandler.CANNOT_LIQUIDATE);
 
         (uint256 _userCollateral, uint256 _masterWalletFee) = getLiquidationDetail(_userAddress);
         
@@ -129,7 +132,7 @@ contract Liquidation is Ownable, TransactionEnums{
         IVault(vaultContract).suck(_userAddress, IVault(vaultContract).ERUSD(_userAddress), uint8(TransactionType.RepaidByLiquidity));
         
         //TODO: get_masterWalletFee + _userCollateral from vault contract to this contract
-        IETHJoin(ethJoinContract).sendUserCollateral(_userAddress, address(this), _userCollateral + _masterWalletFee);
+        IETHJoin(ethJoinContract).sendUserCollateral(_userAddress, address(this), _userCollateral.add(_masterWalletFee));
         
         // send incentive feet to master wallet
         payable (masterWallet).transfer(_masterWalletFee);
@@ -158,10 +161,10 @@ contract Liquidation is Ownable, TransactionEnums{
     function getLiquidationDetail(address _userAddress) view public returns(uint256 _userCollateral, uint256 _masterWalletFee){
         
         // 500/150 = 3.33
-        _userCollateral = (IVault(vaultContract).ERUSD(_userAddress) * 10**18) / IOraclePrice(oracleAddress).getAmount(1 ether);
+        _userCollateral = (IVault(vaultContract).ERUSD(_userAddress).mul(10**18)).div(IOraclePrice(oracleAddress).getAmount(1 ether));
 
         // find 4% of userCollateral as inventive fee
-        _masterWalletFee = (IVault(vaultContract).eth(_userAddress) * incentiveFee)/100;
+        _masterWalletFee = (IVault(vaultContract).eth(_userAddress).mul(incentiveFee)).div(100);
     }
 
     /// this method is used to set incentive fee, e-g, 4, or 5 etc

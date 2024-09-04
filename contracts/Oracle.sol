@@ -2,8 +2,12 @@
 pragma solidity ^0.8.10;
 import "./Common/ERC20/Ownable.sol";
 import "./Common/ErrorHandler.sol";
+import "@openzeppelin/contracts/utils/math/SafeMath.sol"; 
 
 contract OraclePrice is Ownable {
+
+    using SafeMath for uint256;
+
     /// ETC rate
     uint256 private ETHCRate;
 
@@ -22,7 +26,7 @@ contract OraclePrice is Ownable {
 
     /// used to get rate of ETC against USD
     function getAmount(uint256 _ethAmount) external view returns (uint256) {
-        return (ETHCRate * _ethAmount) / 10 ** 18;
+        return (ETHCRate.mul(_ethAmount)).div(10**18);
     }
 
     /// this method will update ETC rate and only operator and owner can call this method

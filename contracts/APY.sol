@@ -4,10 +4,14 @@ import "./Common/ERC20/Ownable.sol";
 import "./console.sol";
 import "./Common/Interface/IVault.sol";
 import "./Common/ErrorHandler.sol";
+import "@openzeppelin/contracts/utils/math/SafeMath.sol"; 
 
 /// @author SyedMokarramHashmi
 /// @title APY rewards
 contract APY {
+
+    using SafeMath for uint256;
+
     mapping(address => bool) public authenticUsers;
     mapping(address => uint256) private userRewards;
     mapping(address => uint256) public lastReward;
@@ -89,38 +93,38 @@ contract APY {
     }
 
     function getCurrentDay(address _userAddress) internal view returns (uint256 _currentTime) {
-    uint256 _dayCount;
-    uint256 _lastRewardTime = IVault(vaultAddress).lastRewardTime(_userAddress);
+        uint256 _dayCount;
+        uint256 _lastRewardTime = IVault(vaultAddress).lastRewardTime(_userAddress);
 
-    if (live) {
-        _dayCount = (block.timestamp - _lastRewardTime + daySeconds - 1) / daySeconds;
-    } else {
-        if (deadTime >= _lastRewardTime) {
-            _dayCount = (deadTime - _lastRewardTime + daySeconds - 1) / daySeconds;
+        if (live) {
+            _dayCount = (block.timestamp.sub(_lastRewardTime).add((daySeconds).sub(1))).div(daySeconds);
+        } else {
+            if (deadTime >= _lastRewardTime) {
+                _dayCount = (deadTime.sub(_lastRewardTime).add((daySeconds).sub(1))).div(daySeconds);
+            }
+        }
+
+        if (_dayCount == 0) {
+            _currentTime = _lastRewardTime;
+        } else {
+            _currentTime = (daySeconds.mul(_dayCount)).add(_lastRewardTime);
         }
     }
 
-    if (_dayCount == 0) {
-        _currentTime = _lastRewardTime;
-    } else {
-        _currentTime = (daySeconds * _dayCount) + _lastRewardTime;
+    function getCurrentDayByLastRewardTime(address _userAddress) public view returns (uint256 _currentTime) {
+        uint256 _dayCount;
+        uint256 _lastRewardTime = IVault(vaultAddress).lastRewardTime(_userAddress);
+
+        _dayCount = (nextAPYStart > _lastRewardTime) 
+            ? (nextAPYStart.sub(_lastRewardTime)).div(daySeconds) 
+            : 0;
+
+        if (_dayCount == 0) {
+            _currentTime = _lastRewardTime;
+        } else {
+            _currentTime = (daySeconds.mul(_dayCount)).add(_lastRewardTime);
+        }
     }
-}
-
-   function getCurrentDayByLastRewardTime(address _userAddress) public view returns (uint256 _currentTime) {
-    uint256 _dayCount;
-    uint256 _lastRewardTime = IVault(vaultAddress).lastRewardTime(_userAddress);
-
-    _dayCount = (nextAPYStart > _lastRewardTime) 
-        ? (nextAPYStart - _lastRewardTime) / daySeconds 
-        : 0;
-
-    if (_dayCount == 0) {
-        _currentTime = _lastRewardTime;
-    } else {
-        _currentTime = (daySeconds * _dayCount) + _lastRewardTime;
-    }
-}
 
 
     /// this method will be called when user call lockAndDraw method in action contact. it will update user last reward time
@@ -146,8 +150,7 @@ contract APY {
             );
         }
 
-        userAPYAmount[_userAddress] = (((_userAmount + _amount) *
-            APYPercentage) / 10 ** 20);
+        userAPYAmount[_userAddress] = (((_userAmount.add(_amount)).mul(APYPercentage)).div(10**20));
         userDeposited[_userAddress] = true;
     }
 
@@ -156,8 +159,7 @@ contract APY {
         address _userAddress
     ) external view returns (uint256) {
         return
-            block.timestamp -
-            IVault(vaultAddress).userDepositTime(_userAddress);
+            block.timestamp.sub(IVault(vaultAddress).userDepositTime(_userAddress));
     }
 
     /// This method is called when user withdraw his APY or collateral. If the contract dies, userAPY will set to zero.
@@ -171,50 +173,48 @@ contract APY {
                 _userAddress,
                 getCurrentDay(_userAddress)
             );
-            userAPYAmount[_userAddress] = (((_amount) * APYPercentage) /
-                10 ** 20);
+            userAPYAmount[_userAddress] = (((_amount).mul(APYPercentage)).div(10**20));
         } else userAPYAmount[_userAddress] = 0;
         withdrawUsers[_userAddress] = true;
     }
 
     /// This method is used to calculate user aPY amount
     function calculate(
-    address _userAddress
-) public view returns (uint256 _APYAmount, uint256 _day) {
-    uint256 _oneDay;
-    uint256 _lastRewardTime = IVault(vaultAddress).lastRewardTime(_userAddress);
-    uint256 _userDepositTime = IVault(vaultAddress).userDepositTime(_userAddress);
-    
-    bool isLoaner = IVault(vaultAddress).isLoaner(_userAddress);
+        address _userAddress
+        ) public view returns (uint256 _APYAmount, uint256 _day) {
+        uint256 _oneDay;
+        uint256 _lastRewardTime = IVault(vaultAddress).lastRewardTime(_userAddress);
+        uint256 _userDepositTime = IVault(vaultAddress).userDepositTime(_userAddress);
+        
+        bool isLoaner = IVault(vaultAddress).isLoaner(_userAddress);
 
-    if (!isLoaner || !APYUsers[_userAddress] || withdrawUsers[_userAddress]) {
-        _APYAmount = 0;
-        _day = 0;
-    } else {
-        if (!live) {
-            if (deadTime >= _lastRewardTime) {
-                _oneDay = (deadTime - _lastRewardTime) / daySeconds;
-                _day = (deadTime - _userDepositTime) / daySeconds;
-            }
+        if (!isLoaner || !APYUsers[_userAddress] || withdrawUsers[_userAddress]) {
+            _APYAmount = 0;
+            _day = 0;
         } else {
-            if (nextAPYStart != 0 && userAPYAmount[_userAddress] == 0) {
-                _oneDay = (!userDeposited[_userAddress])
-                    ? (block.timestamp - getCurrentDayByLastRewardTime(_userAddress)) / daySeconds
-                    : (block.timestamp - _lastRewardTime) / daySeconds;
+            if (!live) {
+                if (deadTime >= _lastRewardTime) {
+                    _oneDay = (deadTime.sub(_lastRewardTime)).div(daySeconds);
+                    _day = (deadTime.sub(_userDepositTime)).div(daySeconds);
+                }
             } else {
-                _oneDay = (block.timestamp - _lastRewardTime) / daySeconds;
+                if (nextAPYStart != 0 && userAPYAmount[_userAddress] == 0) {
+                    _oneDay = (!userDeposited[_userAddress])
+                        ? (block.timestamp.sub(getCurrentDayByLastRewardTime(_userAddress))).div(daySeconds)
+                        : (block.timestamp.sub(_lastRewardTime)).div(daySeconds);
+                } else {
+                    _oneDay = (block.timestamp.sub(_lastRewardTime)).div(daySeconds);
+                }
+                _day = (block.timestamp.sub(_userDepositTime)).div(daySeconds);
             }
-            _day = (block.timestamp - _userDepositTime) / daySeconds;
-        }
 
-        if (userDeposited[_userAddress]) {
-            _APYAmount = lastReward[_userAddress] + (userAPYAmount[_userAddress] * _oneDay);
-        } else {
-            uint256 _userAPYAmount = (IVault(vaultAddress).eth(_userAddress) * APYPercentage) / 10 ** 20;
-            _APYAmount = lastReward[_userAddress] + (_userAPYAmount * _oneDay);
+            if (userDeposited[_userAddress]) {
+                _APYAmount = lastReward[_userAddress].add((userAPYAmount[_userAddress]).mul(_oneDay));
+            } else {
+                uint256 _userAPYAmount = (IVault(vaultAddress).eth(_userAddress).mul(APYPercentage)).div(10**20);
+                _APYAmount = lastReward[_userAddress].add((_userAPYAmount.mul(_oneDay)));
+            }
         }
     }
-}
-
 
 }

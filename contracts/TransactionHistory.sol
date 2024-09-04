@@ -6,8 +6,11 @@ import "./Common/ERC20/IERC20.sol";
 import "./Common/ErrorHandler.sol";
 import "./console.sol";
 import "./STRUCTS/Transactions.sol";
+import "@openzeppelin/contracts/utils/math/SafeMath.sol"; 
 
 contract TransactionHistory is Ownable, TransactionDetail{
+
+    using SafeMath for uint256;
     
     /// save authentic callers
     mapping(address => bool) public authenticUsers;
@@ -62,14 +65,14 @@ contract TransactionHistory is Ownable, TransactionDetail{
         uint256 ToSkip = _page * _size; //to skip
         uint256 count = 0;
 
-        uint256 EndAt = userTransactions[_userAddress].length > ToSkip + _size
-            ? ToSkip + _size
+        uint256 EndAt = userTransactions[_userAddress].length > ToSkip.add(_size)
+            ? ToSkip.add(_size)
             : userTransactions[_userAddress].length;
 
         require(ToSkip < userTransactions[_userAddress].length, ErrorHandler.UNDER_FLOW);
         require(EndAt > ToSkip, ErrorHandler.OVER_FLOW);
 
-        Transactions[] memory result = new Transactions[](EndAt - ToSkip);
+        Transactions[] memory result = new Transactions[](EndAt.sub(ToSkip));
 
         for (uint256 i = ToSkip; i < EndAt; i++) {
             result[count] = userTransactions[_userAddress][(userTransactions[_userAddress].length - 1)- (i)];

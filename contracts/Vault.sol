@@ -11,8 +11,12 @@ import "./Common/Interface/IAPY.sol";
 import "./Common/Interface/IOraclePrice.sol";
 import "./Common/Interface/ITransactionHistory.sol";
 import "./STRUCTS/Transactions.sol";
+import "@openzeppelin/contracts/utils/math/SafeMath.sol"; 
 
 contract Vault is Ownable, TransactionDetail{
+
+    using SafeMath for uint256;
+
     mapping(address => bool) public authenticUsers;
 
     modifier auth {
@@ -212,23 +216,23 @@ contract Vault is Ownable, TransactionDetail{
     // get all loaners with paginated, first page is zero 
     function getLoaners(uint256 page, uint256 size, uint256 ratio) external view returns(address[] memory){
         
-        uint256 ToSkip = page * size; //to skip
+        uint256 ToSkip = page.mul(size); //to skip
         uint256 count = 0;
 
-        uint256 EndAt = loanUsers.length > ToSkip + size
-            ? ToSkip + size
+        uint256 EndAt = loanUsers.length > ToSkip.add(size)
+            ? ToSkip.add(size)
             : loanUsers.length;
         
         require(ToSkip < loanUsers.length, ErrorHandler.Vault_UNDER_FLOW);
         require(EndAt > ToSkip, ErrorHandler.Vault_UNDER_FLOW);
 
-        address[] memory result = new address[](EndAt - ToSkip);
+        address[] memory result = new address[](EndAt.sub(ToSkip));
 
         uint256 _currentPercentage;
 
         for (uint256 i = ToSkip; i < EndAt; i++) {
             uint256 _usdtAmount = IOraclePrice(oracleAddress).getAmount(eth[loanUsers[i]]);
-            _currentPercentage = (_usdtAmount * 10 **20) / ERUSD[loanUsers[i]];
+            _currentPercentage = (_usdtAmount.mul(10**20)).div(ERUSD[loanUsers[i]]);
             if(_currentPercentage <= ratio){
                 result[count] = loanUsers[i];
                 count++;
